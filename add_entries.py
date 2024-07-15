@@ -21,21 +21,24 @@ def copy_table_data(source_db, target_db, table):
     target_cursor = target_conn.cursor()
 
     try:
-        # Get the table structure from the source database
-        source_cursor.execute(f"SELECT sql FROM sqlite_master WHERE type='table' AND name='{table}'")
-        table_schema = source_cursor.fetchone()[0]
+        # Get column information from the source table
+        source_cursor.execute(f"PRAGMA table_info({table})")
+        columns = source_cursor.fetchall()
 
-        # Create the table in the target database if it doesn't exist
-        target_cursor.execute(f"CREATE TABLE IF NOT EXISTS {table} AS SELECT * FROM ({table_schema}) WHERE 0")
+        # Prepare CREATE TABLE statement
+        create_table_sql = f"CREATE TABLE IF NOT EXISTS {table} ("
+        create_table_sql += ", ".join([f"{col[1]} {col[2]}" for col in columns])
+        create_table_sql += ")"
+
+        # Create the table in the target database
+        target_cursor.execute(create_table_sql)
+
+        # Get column names
+        column_names = ", ".join([col[1] for col in columns])
 
         # Get all data from the source table
         source_cursor.execute(f"SELECT * FROM {table}")
         rows = source_cursor.fetchall()
-
-        # Get column names
-        source_cursor.execute(f"PRAGMA table_info({table})")
-        columns = [column[1] for column in source_cursor.fetchall()]
-        column_names = ", ".join(columns)
 
         # Insert all rows into the target table using INSERT OR IGNORE
         target_cursor.executemany(
